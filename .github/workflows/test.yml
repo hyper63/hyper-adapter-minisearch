@@ -1,4 +1,4 @@
-name: Test Minisearch Adapter
+name: Test
 on:
   push:
     branches-ignore: main
@@ -11,8 +11,8 @@ jobs:
         deno-version: [1.11.x]
     steps:
       - uses: actions/checkout@v2
-      - name: Use Deno ${{ matrix.deno-version}}
-        uses: denolib/setup-deno@master
+      - name: Use Deno ${{ matrix.deno-version }}
+        uses: denoland/setup-deno@v1
         with:
           deno-version: ${{ matrix.deno-version }}
       - run: ./scripts/test.sh

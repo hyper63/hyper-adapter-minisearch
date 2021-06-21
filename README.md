@@ -1,4 +1,8 @@
-# MiniSearch Adapter
+# hyper-adapter-minisearch
+
+[![nest badge](https://nest.land/badge.svg)](https://nest.land/package/hyper-adapter-minisearch)
+[![current version](https://img.shields.io/github/tag/hyper63/hyper-adapter-minisearch)](https://github.com/hyper63/hyper-adapter-minisearch/tags/)
+[![test status](https://github.com/hyper63/hyper-adapter-minisearch/workflows/.github/workflows/test.yml/badge.svg)](https://github.com/hyper63/hyper-adapter-minisearch/actions/workflows/test.yml)
 
 This adapter is for the search port, and it implements an embedded search called
 minisearch.
