@@ -21,7 +21,9 @@
 
 ## Background
 
-[`Minisearch`](https://www.npmjs.com/package/minisearch) is a tiny but powerful in-memory fulltext search engine written in JavaScript. It is respectful of resources, and it can comfortably run both in Node and in the browser.
+[`Minisearch`](https://www.npmjs.com/package/minisearch) is a tiny but powerful
+in-memory fulltext search engine written in JavaScript. It is respectful of
+resources, and it can comfortably run both in Node and in the browser.
 
 ## Getting Started
 
