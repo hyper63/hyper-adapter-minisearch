@@ -112,20 +112,28 @@ export default function () {
    */
   function getDoc({ index, key }) {
     if (!index) {
-      return Promise.reject({ ok: false, msg: "index name is required!" });
+      return Promise.reject({ ok: false, status: 400, msg: "index name is required!" });
     }
-    if (!key) return Promise.reject({ ok: false, msg: "key is required!" });
+    if (!key) return Promise.reject({ ok: false, status: 400, msg: "key is required!" });
 
     const store = datastores.get(index);
     const doc = store.get(key);
-    return Promise.resolve(doc === undefined ? null : doc);
+    if (!doc) return Promise.reject({ ok: false, status: 404, msg: 'not found!' })
+    return Promise.resolve({
+      ok: true,
+      key: key,
+      doc: doc
+    });
   }
 
   /**
    * @param {SearchDoc}
    * @returns {Promise<Response>}
    */
-  function updateDoc({ index, key, doc }) {
+  function updateDoc({ index, doc }) {
+    const { key } = doc
+    const data = doc.doc
+
     if (!index) {
       return Promise.reject({ ok: false, msg: "index name is required!" });
     }
@@ -136,8 +144,8 @@ export default function () {
     const store = datastores.get(index);
     const oldDoc = store.get(key);
     search.remove(oldDoc);
-    search.add(doc);
-    store.set(key, doc);
+    search.add(data);
+    store.set(key, data);
     return Promise.resolve({ ok: true });
   }
 
