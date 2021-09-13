@@ -37,8 +37,7 @@ Deno.test("get document", async () => {
     index: "default",
     key: "1",
   });
-
-  assertEquals(result3.id, "1");
+  assertEquals(result3.key, "1");
 });
 
 Deno.test("update document", async () => {
@@ -52,13 +51,11 @@ Deno.test("update document", async () => {
       category: "search",
     },
   });
-
-  const newDoc = await adapter.getDoc({
+  const r = await adapter.getDoc({
     index: "default",
     key: "1",
   });
-
-  assertEquals(newDoc.title, "Search is cool");
+  assertEquals(r.doc.title, "Search is cool");
   assert(result4.ok);
 });
 
@@ -92,7 +89,7 @@ Deno.test("remove doc", async () => {
   const deletedDoc = await adapter.getDoc({
     index: "default",
     key: "1",
-  });
+  }).catch(() => null);
 
   assertEquals(deletedDoc, null);
 });
