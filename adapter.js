@@ -143,16 +143,32 @@ export default function () {
    * @returns {Promise<Response>}
    */
   function updateDoc({ index, key, doc }) {
+    console.log({ index });
     if (!index) {
-      return Promise.reject({ ok: false, msg: "index name is required!" });
+      return Promise.reject({
+        ok: false,
+        status: 400,
+        msg: "index name is required!",
+      });
     }
     if (!key) return Promise.reject({ ok: false, msg: "key is required!" });
     if (!doc) return Promise.reject({ ok: false, msg: "doc is required!" });
 
-    const search = indexes.get(index);
     const store = datastores.get(index);
+    if (!store) {
+      return Promise.reject({
+        ok: false,
+        status: 400,
+        msg: "search index does not exist!",
+      });
+    }
+
+    const search = indexes.get(index);
+
     const oldDoc = store.get(key);
-    search.remove(oldDoc);
+    if (oldDoc) {
+      search.remove(oldDoc);
+    }
     search.add(doc);
     store.set(key, doc);
     return Promise.resolve({ ok: true });
