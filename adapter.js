@@ -187,6 +187,9 @@ export default function () {
     const search = indexes.get(index);
     const store = datastores.get(index);
     const oldDoc = store.get(key);
+    if (!oldDoc) {
+      return Promise.reject({ ok: false, status: 404, msg: "Not found" });
+    }
     search.remove(oldDoc);
     store.delete(key);
     return Promise.resolve({ ok: true });
@@ -204,6 +207,8 @@ export default function () {
 
     const search = indexes.get(index);
     search.addAll(docs);
+    const store = datastores.get(index);
+    docs.map((doc) => store.set(doc.id, doc));
     return Promise.resolve({ ok: true, results: [] });
   }
 
