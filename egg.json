@@ -5,7 +5,7 @@
   "description": "Hyper Search port adapter for Minisearch",
   "homepage": "https://github.com/hyper63/hyper-adapter-minisearch",
   "repo": "https://github.com/hyper63/hyper-adapter-minisearch",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "unstable": false,
   "unlisted": false,
   "files": [
