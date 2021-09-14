@@ -1,8 +1,10 @@
 import { assert, assertEquals } from "./dev_deps.js";
+import { DB } from "./deps.js";
+import dal from "./dal.js";
 
 import createAdapter from "./adapter.js";
 
-const adapter = createAdapter();
+const adapter = createAdapter(dal(new DB("./test.db")));
 
 // TODO: Tyler. Make tests independent of each other
 
@@ -17,6 +19,7 @@ Deno.test("create index", async () => {
   assert(result.ok);
 });
 
+/*
 Deno.test("index doc", async () => {
   const result2 = await adapter.indexDoc({
     index: "default",
@@ -98,3 +101,4 @@ Deno.test("delete index", async () => {
   const deleteResult = await adapter.deleteIndex("default");
   assert(deleteResult.ok);
 });
+*/

@@ -1,6 +1,6 @@
 import { MiniSearch, R } from "./deps.js";
 
-const { allPass, keys, reduce } = R;
+const { allPass, keys, reduce, assoc } = R;
 
 // types
 
@@ -43,15 +43,27 @@ const { allPass, keys, reduce } = R;
   * @property {string} [msg]
  */
 
-export default function () {
+export default function (db) {
   const indexes = new Map();
-  const datastores = new Map();
-
+  //const datastores = new Map();
+  // for each store
+  //.  create search index
+  //.  load docs into index
+  db.list("index")
+    .then((idxs) =>
+      idxs.map((idx) => {
+        console.log(idx)
+        indexes.set(idx.id, new MiniSearch(idx.mappings));
+        return idx;
+      })
+    )
+    .then(() => db.list("doc"))
+    .then((docs) => docs.map((doc) => indexes.get(doc.index).add(doc)));
   /**
    * @param {IndexInfo}
    * @returns {Promise<Response>}
    */
-  function createIndex({ index, mappings }) {
+  async function createIndex({ index, mappings }) {
     if (!index) {
       return Promise.reject({
         ok: false,
@@ -65,10 +77,22 @@ export default function () {
           "mappings object required, it should have fields property and storedFields property.",
       });
     }
+    if (indexes.get(index)) {
+      return Promise.reject({
+        ok: false,
+        status: 409,
+        msg: 'index already exists'
+      })
+    }
     const sindex = new MiniSearch(mappings);
-    const store = new Map();
+    await db.post({
+      id: index,
+      type: "index",
+      mappings
+    });
+    //const store = new Map();
     indexes.set(index, sindex);
-    datastores.set(index, store);
+    //datastores.set(index, store);
     return Promise.resolve({ ok: true });
   }
 
@@ -76,7 +100,7 @@ export default function () {
    * @param {string} name
    * @returns {Promise<Response>}
    */
-  function deleteIndex(name) {
+  async function deleteIndex(name) {
     if (!name) {
       return Promise.reject({
         ok: false,
@@ -84,7 +108,7 @@ export default function () {
       });
     }
     indexes.delete(name);
-    datastores.delete(name);
+    await db.remove(name);
     return Promise.resolve({ ok: true });
   }
 
@@ -92,7 +116,7 @@ export default function () {
    * @param {SearchDoc}
    * @returns {Promise<Response>}
    */
-  function indexDoc({ index, key, doc }) {
+  async function indexDoc({ index, key, doc }) {
     if (!index) {
       return Promise.reject({ ok: false, msg: "index name is required!" });
     }
@@ -100,9 +124,10 @@ export default function () {
     if (!doc) return Promise.reject({ ok: false, msg: "doc is required!" });
 
     const search = indexes.get(index);
-    const store = datastores.get(index);
+    //const store = datastores.get(index);
     search.add(doc);
-    store.set(key, doc);
+    await db.post({ id: key, type: "doc", doc: assoc("index", index, doc) });
+    //store.set(key, doc);
     return Promise.resolve({ ok: true });
   }
 
@@ -127,7 +152,8 @@ export default function () {
     }
 
     const store = datastores.get(index);
-    const doc = store.get(key);
+    //const doc = store.get(key);
+    const doc = db.get(key);
     if (!doc) {
       return Promise.reject({ ok: false, status: 404, msg: "not found!" });
     }
@@ -142,8 +168,7 @@ export default function () {
    * @param {SearchDoc}
    * @returns {Promise<Response>}
    */
-  function updateDoc({ index, key, doc }) {
-    console.log({ index });
+  async function updateDoc({ index, key, doc }) {
     if (!index) {
       return Promise.reject({
         ok: false,
@@ -154,7 +179,7 @@ export default function () {
     if (!key) return Promise.reject({ ok: false, msg: "key is required!" });
     if (!doc) return Promise.reject({ ok: false, msg: "doc is required!" });
 
-    const store = datastores.get(index);
+    const store = await db.get(index);
     if (!store) {
       return Promise.reject({
         ok: false,
@@ -165,12 +190,14 @@ export default function () {
 
     const search = indexes.get(index);
 
-    const oldDoc = store.get(key);
+    const oldDoc = await db.get(key);
     if (oldDoc) {
       search.remove(oldDoc);
     }
+    doc = assoc("index", index, doc);
     search.add(doc);
-    store.set(key, doc);
+    await db.put(doc);
+    //store.set(key, doc);
     return Promise.resolve({ ok: true });
   }
 
@@ -178,7 +205,7 @@ export default function () {
    * @param {SearchInfo}
    * @returns {Promise<Response>}
    */
-  function removeDoc({ index, key }) {
+  async function removeDoc({ index, key }) {
     if (!index) {
       return Promise.reject({ ok: false, msg: "index name is required!" });
     }
@@ -191,7 +218,8 @@ export default function () {
       return Promise.reject({ ok: false, status: 404, msg: "Not found" });
     }
     search.remove(oldDoc);
-    store.delete(key);
+    //store.delete(key);
+    await db.remove(key);
     return Promise.resolve({ ok: true });
   }
 
@@ -199,7 +227,7 @@ export default function () {
    * @param {BulkIndex}
    * @returns {Promise<ResponseWitResults>}
    */
-  function bulk({ index, docs }) {
+  async function bulk({ index, docs }) {
     if (!index) {
       return Promise.reject({ ok: false, msg: "index name is required!" });
     }
@@ -207,8 +235,9 @@ export default function () {
 
     const search = indexes.get(index);
     search.addAll(docs);
-    const store = datastores.get(index);
-    docs.map((doc) => store.set(doc.id, doc));
+    //const store = datastores.get(index);
+    //docs.map((doc) => store.set(doc.id, doc));
+    await Promise.all(docs.map(db.post));
     return Promise.resolve({ ok: true, results: [] });
   }
 
