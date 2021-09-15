@@ -1,27 +1,64 @@
 import { assert, assertEquals } from "./dev_deps.js";
-import { DB } from "./deps.js";
+import { crocks, DB } from "./deps.js";
 import dal from "./dal.js";
 
 import createAdapter from "./adapter.js";
 
 const adapter = createAdapter(dal(new DB("./test.db")));
 
-// TODO: Tyler. Make tests independent of each other
+const test = Deno.test;
+const { Async } = crocks;
 
-Deno.test("create index", async () => {
-  const result = await adapter.createIndex({
+const setup = () =>
+  Async.fromPromise(adapter.createIndex.bind(adapter))({
     index: "default",
     mappings: {
       fields: ["title", "body"],
       storeFields: ["title", "body", "category"],
     },
   });
-  assert(result.ok);
-});
+
+const cleanup = () =>
+  Async.fromPromise(adapter.deleteIndex.bind(adapter))("default");
 
 /*
-Deno.test("index doc", async () => {
-  const result2 = await adapter.indexDoc({
+test("create index", () =>
+  setup()
+    .map(res => assert(res.ok))
+    .chain(cleanup)
+    .toPromise()
+);
+*/
+
+test("add search doc", () =>
+  setup()
+    .chain(() =>
+      Async.fromPromise(adapter.indexDoc.bind(adapter))({
+        index: "default",
+        key: "1",
+        doc: {
+          id: "1",
+          title: "Search is fun",
+          body: "search body",
+          category: "foo",
+        },
+      })
+    )
+    .map((res) => (assert(res.ok), res))
+    .chain(cleanup)
+    .toPromise());
+
+/*
+test("index doc", async () => {
+  await adapter.createIndex({
+    index: "default",
+    mappings: {
+      fields: ["title", "body"],
+      storeFields: ["title", "body", "category"],
+    },
+  });
+
+  const result = await adapter.indexDoc({
     index: "default",
     key: "1",
     doc: {
@@ -32,9 +69,35 @@ Deno.test("index doc", async () => {
     },
   });
 
-  assert(result2.ok);
-});
+  assert(result.ok);
 
+  // const getResult = await adapter.getDoc({ index: "default", key: "1" });
+  // assert(getResult.ok);
+  // assertEquals(getResult.doc.title, "Search is fun");
+
+  // const updateResult = await adapter.updateDoc({
+  //   index: "default",
+  //   key: "1",
+  //   doc: { id: "1", title: "Beep Boop", body: "Test", category: "search" },
+  // });
+  // assert(updateResult.ok);
+
+  // const cleanUpDoc = await adapter.removeDoc({
+  //   index: "default",
+  //   key: "1",
+  // });
+
+  // const getResult2 = await adapter.getDoc({ index: "default", key: "1" });
+  // assert(getResult2.ok);
+  // assertEquals(getResult2.doc.title, "Beep Boop");
+
+  // assert(cleanUpDoc.ok);
+  // clean up
+  const deleteResult = await adapter.deleteIndex("default");
+  assert(deleteResult.ok);
+});
+*/
+/*
 Deno.test("get document", async () => {
   const result3 = await adapter.getDoc({
     index: "default",
