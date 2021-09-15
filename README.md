@@ -35,7 +35,7 @@ export default {
   adapter: [
     {
       port: "search",
-      plugins: [minisearch()],
+      plugins: [minisearch({dir: '/tmp' })],
     },
   ],
 };
@@ -49,7 +49,7 @@ This is a Deno module available to import from
 deps.js
 
 ```js
-export { default as minisearch } from "https://x.nest.land/hyper-adapter-minisearch@1.0.10/mod.js";
+export { default as minisearch } from "https://x.nest.land/hyper-adapter-minisearch@1.0.14/mod.js";
 ```
 
 ## Features

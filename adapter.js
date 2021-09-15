@@ -1,6 +1,6 @@
 import { crocks, MiniSearch, R } from "./deps.js";
 
-const { allPass, keys, reduce, assoc, compose, merge, map, prop } = R;
+const { always, allPass, keys, reduce, assoc, compose, merge, map } = R;
 
 // types
 
@@ -50,16 +50,22 @@ export default function (db) {
   const list = Async.fromPromise(db.listByType.bind(db));
   const post = Async.fromPromise(db.post.bind(db));
   const get = Async.fromPromise(db.get.bind(db));
+  const put = Async.fromPromise(db.put.bind(db));
+  const remove = Async.fromPromise(db.remove.bind(db));
 
   // load search engine
 
   list("index")
-    .map(map((idx) => (indexes.set(idx.id, new MiniSearch(idx.mappings)), idx)))
+    .map(
+      map((
+        { doc },
+      ) => (indexes.set(doc.id, new MiniSearch(doc.mappings)), doc)),
+    )
     .chain(() => list("doc"))
-    .map(map((doc) => indexes.get(doc.parent).add(doc)))
+    .map(map((record) => indexes.get(record.parent).add(record.doc)))
     .fork(
       (e) => console.log(e),
-      (r) =>
+      (_) =>
         console.log({
           INFO: "loaded search engines",
           DATE: new Date().toISOString(),
@@ -79,7 +85,10 @@ export default function (db) {
       id: index,
       type: "index",
       parent: "root",
-      mappings,
+      doc: {
+        id: index,
+        mappings,
+      },
     });
     indexes.set(index, sindex);
     return Promise.resolve({ ok: true });
@@ -94,7 +103,9 @@ export default function (db) {
       return Promise.resolve({ ok: true });
     }
     indexes.delete(name);
-    await db.remove(name).then(() => db.removeByParent(name));
+    await db.remove({ id: name, type: "index", parent: "root" }).then(() =>
+      db.removeByParent(name)
+    );
     return Promise.resolve({ ok: true });
   }
 
@@ -103,9 +114,9 @@ export default function (db) {
    * @returns {Promise<Response>}
    */
   function indexDoc({ index, key, doc }) {
-    return Async.of({ index, key, doc })
+    return Async.of({ id: key, type: "doc", parent: index, doc })
       .chain((ctx) =>
-        get(ctx.key, "doc", ctx.index)
+        get(ctx)
           // if doc exists then reject as 409 conflict
           .chain((doc) =>
             doc
@@ -117,13 +128,7 @@ export default function (db) {
               : Async.Resolved(ctx)
           )
       )
-      .chain(compose(
-        post,
-        assoc("id", key),
-        assoc("type", "doc"),
-        assoc("parent", index),
-        prop("doc"),
-      ))
+      .chain(post)
       .map(() => indexes.get(index).add(assoc("id", key, doc)))
       .map(() => ({ ok: true }))
       .toPromise();
@@ -134,17 +139,10 @@ export default function (db) {
    * @returns {Promise<Response>}
    */
   function getDoc({ index, key }) {
-    return Promise.resolve({ index, key })
-      .then((_) =>
-        _.index
-          ? _
-          : Promise.reject({ ok: false, msg: "index name is required!" })
-      )
-      .then((_) =>
-        _.key ? _ : Promise.reject({ ok: false, msg: "key is required!" })
-      )
-      .then(({ key }) => db.get(key))
-      .then((doc) => ({ ok: true, key, doc }));
+    return Async.of({ id: key, type: "doc", parent: index })
+      .chain(get)
+      .map((doc) => ({ ok: true, key, doc }))
+      .toPromise();
   }
 
   /**
@@ -152,72 +150,49 @@ export default function (db) {
    * @returns {Promise<Response>}
    */
   function updateDoc({ index, key, doc }) {
-    return Promise.resolve({ index, key, doc })
-      .then((_) =>
-        _.index
-          ? _
-          : Promise.reject({ ok: false, msg: "index name is required!" })
+    return get({ id: key, parent: index, type: "doc" })
+      .map((_) => (console.log(_), _))
+      .map((oldDoc) => (indexes.get(index).remove(oldDoc), oldDoc))
+      .chain((oldDoc) =>
+        put({ id: key, parent: index, type: "doc", doc: merge(oldDoc, doc) })
       )
-      .then((_) =>
-        _.key ? _ : Promise.reject({ ok: false, msg: "key is required!" })
-      )
-      .then((_) =>
-        _.doc ? _ : Promise.reject({ ok: false, msg: "doc is required!" })
-      )
-      .then(async (_) => {
-        const olddoc = await db.get(_.key);
-        if (!olddoc) {
-          return Promise.reject({
-            ok: false,
-            status: 404,
-            msg: "doc is not found!",
-          });
-        }
-        indexes.get(_.index).remove(olddoc);
-        indexes.get(_.index).add(_.doc);
-        await db.put(merge(olddoc, _.doc));
-        return { ok: true };
-      });
+      .map(always({ ok: true }))
+      .toPromise();
   }
 
   /**
    * @param {SearchInfo}
    * @returns {Promise<Response>}
    */
-  async function removeDoc({ index, key }) {
-    if (!index) {
-      return Promise.reject({ ok: false, msg: "index name is required!" });
-    }
-    if (!key) return Promise.reject({ ok: false, msg: "key is required!" });
-
-    const search = indexes.get(index);
-    //const store = datastores.get(index);
-    const oldDoc = await db.get(key);
-    if (!oldDoc) {
-      return Promise.reject({ ok: false, status: 404, msg: "Not found" });
-    }
-    search.remove(oldDoc);
-    //store.delete(key);
-    await db.remove(key);
-    return Promise.resolve({ ok: true });
+  function removeDoc({ index, key }) {
+    return Async.of({ id: key, type: "doc", parent: index })
+      .chain(get)
+      .map((oldDoc) => (indexes.get(index).remove(oldDoc), oldDoc))
+      .chain(() => remove({ id: key, type: "doc", parent: index }))
+      .map(always({ ok: true }))
+      .toPromise();
   }
 
   /**
    * @param {BulkIndex}
    * @returns {Promise<ResponseWitResults>}
    */
-  async function bulk({ index, docs }) {
-    if (!index) {
-      return Promise.reject({ ok: false, msg: "index name is required!" });
-    }
-    if (!docs) return Promise.reject({ ok: false, msg: "docs is required!" });
-
-    const search = indexes.get(index);
-    search.addAll(docs);
-    //const store = datastores.get(index);
-    //docs.map((doc) => store.set(doc.id, doc));
-    await Promise.all(docs.map(db.post));
-    return Promise.resolve({ ok: true, results: [] });
+  function bulk({ index, docs }) {
+    return Async.of({ parent: index, docs })
+      .map((ctx) => (indexes.get(ctx.parent).addAll(ctx.docs), ctx))
+      .chain((ctx) =>
+        Async.all(
+          map(
+            compose(
+              post,
+              (doc) => ({ id: doc.id, type: "doc", parent: ctx.parent, doc }),
+            ),
+            docs,
+          ),
+        )
+      )
+      .map((docs) => ({ ok: true, docs }))
+      .toPromise();
   }
 
   function createFilterFn(object) {

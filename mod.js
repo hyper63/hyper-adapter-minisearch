@@ -8,8 +8,7 @@ export default function (config) {
     port: "search",
     load: () => {
       const dir = config.dir || ".";
-      let db = new DB(`${dir}/hyper-search.db`);
-      let dataAccess = dal(db);
+      const db = new DB(`${dir}/hyper-search.db`);
 
       window.addEventListener("unload", () => {
         if (db) {
@@ -21,7 +20,7 @@ export default function (config) {
         }
       });
 
-      return dataAccess;
+      return dal(db);
     },
     link: (db) => () => adapter(db),
   });
