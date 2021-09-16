@@ -1,6 +1,6 @@
-import { MiniSearch, R } from "./deps.js";
+import { crocks, R } from "./deps.js";
 
-const { allPass, keys, reduce } = R;
+const { always, allPass, keys, reduce, assoc, compose, merge, map } = R;
 
 // types
 
@@ -15,9 +15,6 @@ const { allPass, keys, reduce } = R;
   * @property {Array} [storeFields] - fields to be return as result
   *
   *
-  * @typedef {Object} IndexInfo
-  * @property {string} index - index name
-  * @property {object} mappings - index setup
   *
   * @typedef {Object} SearchDoc
   * @property {string} index
@@ -43,49 +40,87 @@ const { allPass, keys, reduce } = R;
   * @property {string} [msg]
  */
 
-export default function () {
-  const indexes = new Map();
-  const datastores = new Map();
+const { Async } = crocks;
+
+const load = (fn) => compose(Async.all, map(fn));
+const fork = (m) =>
+  m.fork(
+    (e) => console.log("ERROR: ", e.message),
+    (_) =>
+      console.log(
+        `{ INFO: "loaded search engines", DATE: ${new Date().toISOString()} }`,
+      ),
+  );
+
+export default function ({ db, se }) {
+  const list = Async.fromPromise(db.listByType.bind(db));
+  const post = Async.fromPromise(db.post.bind(db));
+  const get = Async.fromPromise(db.get.bind(db));
+  const put = Async.fromPromise(db.put.bind(db));
+  const remove = Async.fromPromise(db.remove.bind(db));
+  const removeByParent = Async.fromPromise(db.removeByParent.bind(db));
+
+  const create = Async.fromPromise(se.create.bind(se));
+  const destroy = Async.fromPromise(se.destroy.bind(se));
+  const add = Async.fromPromise(se.add.bind(se));
+  const seRemove = Async.fromPromise(se.remove.bind(se));
+  const seBulk = Async.fromPromise(se.bulk.bind(se));
+  const search = Async.fromPromise(se.search.bind(se));
+  const exists = Async.fromPromise(se.exists.bind(se));
+
+  // load search engine
+  fork(
+    list("index")
+      .chain(
+        load(({ doc }) => create({ index: doc.id, mappings: doc.mappings })),
+      )
+      .chain(() => list("doc"))
+      .chain(load((record) => add({ index: record.parent, doc: record.doc }))),
+  );
 
   /**
-   * @param {IndexInfo}
+   * @typedef {Object} SearchIndex
+   * @property {string} index - index name
+   * @property {object} mappings - index setup
+   *
+   * @param {SearchIndex}
    * @returns {Promise<Response>}
    */
   function createIndex({ index, mappings }) {
-    if (!index) {
-      return Promise.reject({
-        ok: false,
-        msg: "name is required to create index",
-      });
-    }
-    if (!mappings) {
-      return Promise.reject({
-        ok: false,
-        msg:
-          "mappings object required, it should have fields property and storedFields property.",
-      });
-    }
-    const sindex = new MiniSearch(mappings);
-    const store = new Map();
-    indexes.set(index, sindex);
-    datastores.set(index, store);
-    return Promise.resolve({ ok: true });
+    return exists(index)
+      .chain((exists) =>
+        exists
+          ? Async.Rejected({ ok: true })
+          : Async.Resolved({ index, mappings })
+      )
+      .chain(create).map((_) => ({ index, mappings }))
+      .chain((ctx) =>
+        post({
+          id: ctx.index,
+          type: "index",
+          parent: "root",
+          doc: { id: ctx.index, mapping: ctx.mapping },
+        })
+      )
+      .bichain(
+        (e) => e.ok ? Async.Resolved(e) : Async.Rejected(e),
+        (_) => Async.Resolved({ ok: true }),
+      )
+      .toPromise();
   }
 
   /**
-   * @param {string} name
+   * @param {string} index
    * @returns {Promise<Response>}
    */
-  function deleteIndex(name) {
-    if (!name) {
-      return Promise.reject({
-        ok: false,
-        msg: "name is required to create index",
-      });
-    }
-    indexes.delete(name);
-    datastores.delete(name);
-    return Promise.resolve({ ok: true });
+  function deleteIndex(index) {
+    return Async.all([
+      destroy(index),
+      remove({ id: index, type: "index", parent: "root" }),
+      removeByParent(index),
+    ])
+      .bimap(() => ({ ok: false, status: 400 }), () => ({ ok: true }))
+      .toPromise();
   }
 
   /**
@@ -93,17 +128,23 @@ export default function () {
    * @returns {Promise<Response>}
    */
   function indexDoc({ index, key, doc }) {
-    if (!index) {
-      return Promise.reject({ ok: false, msg: "index name is required!" });
-    }
-    if (!key) return Promise.reject({ ok: false, msg: "key is required!" });
-    if (!doc) return Promise.reject({ ok: false, msg: "doc is required!" });
-
-    const search = indexes.get(index);
-    const store = datastores.get(index);
-    search.add(doc);
-    store.set(key, doc);
-    return Promise.resolve({ ok: true });
+    return Async.of({ id: key, type: "doc", parent: index, doc })
+      .chain((ctx) =>
+        get(ctx)
+          // if doc exists then reject as 409 conflict
+          .chain((doc) =>
+            doc
+              ? Async.Rejected({
+                ok: false,
+                status: 409,
+                msg: "document conflict",
+              })
+              : Async.Resolved(ctx)
+          )
+      )
+      .chain(post)
+      .chain(() => add({ index, doc: assoc("id", key, doc) }))
+      .toPromise();
   }
 
   /**
@@ -111,31 +152,10 @@ export default function () {
    * @returns {Promise<Response>}
    */
   function getDoc({ index, key }) {
-    if (!index) {
-      return Promise.reject({
-        ok: false,
-        status: 400,
-        msg: "index name is required!",
-      });
-    }
-    if (!key) {
-      return Promise.reject({
-        ok: false,
-        status: 400,
-        msg: "key is required!",
-      });
-    }
-
-    const store = datastores.get(index);
-    const doc = store.get(key);
-    if (!doc) {
-      return Promise.reject({ ok: false, status: 404, msg: "not found!" });
-    }
-    return Promise.resolve({
-      ok: true,
-      key: key,
-      doc: doc,
-    });
+    return Async.of({ id: key, type: "doc", parent: index })
+      .chain(get)
+      .map((doc) => ({ ok: true, key, doc }))
+      .toPromise();
   }
 
   /**
@@ -143,35 +163,13 @@ export default function () {
    * @returns {Promise<Response>}
    */
   function updateDoc({ index, key, doc }) {
-    console.log({ index });
-    if (!index) {
-      return Promise.reject({
-        ok: false,
-        status: 400,
-        msg: "index name is required!",
-      });
-    }
-    if (!key) return Promise.reject({ ok: false, msg: "key is required!" });
-    if (!doc) return Promise.reject({ ok: false, msg: "doc is required!" });
-
-    const store = datastores.get(index);
-    if (!store) {
-      return Promise.reject({
-        ok: false,
-        status: 400,
-        msg: "search index does not exist!",
-      });
-    }
-
-    const search = indexes.get(index);
-
-    const oldDoc = store.get(key);
-    if (oldDoc) {
-      search.remove(oldDoc);
-    }
-    search.add(doc);
-    store.set(key, doc);
-    return Promise.resolve({ ok: true });
+    return get({ id: key, parent: index, type: "doc" })
+      .chain((oldDoc) => seRemove({ index, doc: oldDoc }).map((_) => oldDoc))
+      .chain((oldDoc) =>
+        put({ id: key, parent: index, type: "doc", doc: merge(oldDoc, doc) })
+      )
+      .map(always({ ok: true }))
+      .toPromise();
   }
 
   /**
@@ -179,20 +177,12 @@ export default function () {
    * @returns {Promise<Response>}
    */
   function removeDoc({ index, key }) {
-    if (!index) {
-      return Promise.reject({ ok: false, msg: "index name is required!" });
-    }
-    if (!key) return Promise.reject({ ok: false, msg: "key is required!" });
-
-    const search = indexes.get(index);
-    const store = datastores.get(index);
-    const oldDoc = store.get(key);
-    if (!oldDoc) {
-      return Promise.reject({ ok: false, status: 404, msg: "Not found" });
-    }
-    search.remove(oldDoc);
-    store.delete(key);
-    return Promise.resolve({ ok: true });
+    return Async.of({ id: key, type: "doc", parent: index })
+      .chain(get)
+      .chain((oldDoc) => seRemove({ index, doc: oldDoc }).map((_) => oldDoc))
+      .chain(() => remove({ id: key, type: "doc", parent: index }))
+      .map(always({ ok: true }))
+      .toPromise();
   }
 
   /**
@@ -200,16 +190,20 @@ export default function () {
    * @returns {Promise<ResponseWitResults>}
    */
   function bulk({ index, docs }) {
-    if (!index) {
-      return Promise.reject({ ok: false, msg: "index name is required!" });
-    }
-    if (!docs) return Promise.reject({ ok: false, msg: "docs is required!" });
-
-    const search = indexes.get(index);
-    search.addAll(docs);
-    const store = datastores.get(index);
-    docs.map((doc) => store.set(doc.id, doc));
-    return Promise.resolve({ ok: true, results: [] });
+    return seBulk({ index, docs }).map((_) => ({ parent: index, docs }))
+      .chain((ctx) =>
+        Async.all(
+          map(
+            compose(
+              post,
+              (doc) => ({ id: doc.id, type: "doc", parent: ctx.parent, doc }),
+            ),
+            docs,
+          ),
+        )
+      )
+      .map((docs) => ({ ok: true, docs }))
+      .toPromise();
   }
 
   function createFilterFn(object) {
@@ -232,7 +226,6 @@ export default function () {
     }
     if (!query) return Promise.reject({ ok: false, msg: "query is required!" });
 
-    const search = indexes.get(index);
     let options = {};
     // if fields
     options = fields ? { ...options, fields } : options;
@@ -240,8 +233,9 @@ export default function () {
       options = { ...options, filter: createFilterFn(filter) };
     }
 
-    const results = search.search(query, options);
-    return Promise.resolve({ ok: true, matches: results });
+    return search({ index, query, options })
+      .map((matches) => ({ ok: true, matches }))
+      .toPromise();
   }
 
   return Object.freeze({

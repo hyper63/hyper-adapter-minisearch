@@ -1,100 +1,139 @@
 import { assert, assertEquals } from "./dev_deps.js";
+import { crocks, DB } from "./deps.js";
+import dal from "./dal.js";
+import sal from "./sal.js";
 
 import createAdapter from "./adapter.js";
 
-const adapter = createAdapter();
+const adapter = createAdapter({ db: dal(new DB("./test.db")), se: sal() });
 
-// TODO: Tyler. Make tests independent of each other
+const test = Deno.test;
+const { Async } = crocks;
 
-Deno.test("create index", async () => {
-  const result = await adapter.createIndex({
-    index: "default",
+const setup = (name) =>
+  Async.fromPromise(adapter.createIndex.bind(adapter))({
+    index: name,
     mappings: {
       fields: ["title", "body"],
       storeFields: ["title", "body", "category"],
     },
   });
-  assert(result.ok);
-});
 
-Deno.test("index doc", async () => {
-  const result2 = await adapter.indexDoc({
-    index: "default",
-    key: "1",
-    doc: {
+const cleanup = (name) =>
+  () => Async.fromPromise(adapter.deleteIndex.bind(adapter))(name);
+
+const addDoc = (index) =>
+  (doc) =>
+    Async.fromPromise(adapter.indexDoc.bind(adapter))({
+      index: index,
+      key: doc.id,
+      doc,
+    });
+
+const updateDoc = (index) =>
+  (doc) =>
+    Async.fromPromise(adapter.updateDoc.bind(adapter))({
+      index: index,
+      key: doc.id,
+      doc,
+    });
+
+const get = (index, key) =>
+  Async.fromPromise(adapter.getDoc.bind(adapter))({
+    index,
+    key,
+  });
+
+const remove = (index, key) =>
+  Async.fromPromise(adapter.removeDoc.bind(adapter))({
+    index,
+    key,
+  });
+
+const movies = [
+  { id: "movie-1", type: "movie", title: "Ghostbusters" },
+  { id: "movie-2", type: "movie", title: "Dune" },
+  { id: "movie-3", type: "movie", title: "Jaws" },
+];
+
+const addAll = (index) =>
+  (docs) =>
+    Async.fromPromise(adapter.bulk.bind(adapter))({
+      index,
+      docs,
+    });
+
+const search = (index) =>
+  (query) =>
+    Async.fromPromise(adapter.query.bind(adapter))({
+      index,
+      q: { query },
+    });
+
+test("create index", () =>
+  setup("test-1")
+    .map((res) => assert(res.ok))
+    .chain(cleanup("test-1"))
+    .toPromise());
+
+test("add search doc", () =>
+  setup("test-2")
+    .map(() => ({
       id: "1",
-      title: "Search is fun",
-      body: "This is a search post about cool and exciting stuff",
-      category: "search",
-    },
-  });
+      title: "SOC",
+      body: "hello world",
+      category: "any",
+    }))
+    .chain(addDoc("test-2"))
+    .map((res) => (assert(res.ok), res))
+    .chain(cleanup("test-2"))
+    .toPromise());
 
-  assert(result2.ok);
-});
-
-Deno.test("get document", async () => {
-  const result3 = await adapter.getDoc({
-    index: "default",
-    key: "1",
-  });
-  assertEquals(result3.key, "1");
-});
-
-Deno.test("update document", async () => {
-  const result4 = await adapter.updateDoc({
-    index: "default",
-    key: "1",
-    doc: {
+test("update doc", () =>
+  setup("test-3")
+    .map(() => ({
       id: "1",
-      title: "Search is cool",
-      body: "This is a search post and it is fun",
-      category: "search",
-    },
-  });
-  const r = await adapter.getDoc({
-    index: "default",
-    key: "1",
-  });
-  assertEquals(r.doc.title, "Search is cool");
-  assert(result4.ok);
-});
+      title: "Ghostbusters",
+      type: "movie",
+      category: "scifi",
+    }))
+    .chain(addDoc("test-3"))
+    .map(() => ({
+      id: "1",
+      title: "Ghostbusters 2",
+      type: "movie",
+      category: "scifi",
+    }))
+    .chain(updateDoc("test-3"))
+    .map((res) => (assert(res.ok), res))
+    .chain(cleanup("test-3"))
+    .toPromise());
 
-Deno.test("query doc", async () => {
-  const searchResults = await adapter.query({
-    index: "default",
-    q: { query: "Search is cool" },
-  });
+test("get document", () =>
+  setup("test-4")
+    .map(() => ({ id: "3", type: "movie", title: "Jaws" }))
+    .chain(addDoc("test-4"))
+    .chain(() => get("test-4", "3"))
+    .map((v) => (assert(v.ok), v))
+    .map((v) => (assertEquals(v.doc.title, "Jaws"), v))
+    .chain(cleanup("test-4"))
+    .toPromise());
 
-  assertEquals(searchResults.matches[0].id, "1");
+test("remove document", () =>
+  setup("test-5")
+    .map(() => ({ id: "4", type: "movie", title: "Dune" }))
+    .chain(addDoc("test-5"))
+    .chain(() => remove("test-5", "4"))
+    .map((v) => (assert(v.ok), v))
+    .chain(cleanup("test-5"))
+    .toPromise());
 
-  const searchResults2 = await adapter.query({
-    index: "default",
-    q: {
-      query: "Search is cool",
-      filter: { category: "search" },
-    },
-  });
-
-  assertEquals(searchResults2.matches[0].id, "1", "found doc");
-});
-
-Deno.test("remove doc", async () => {
-  const docDeleteResult = await adapter.removeDoc({
-    index: "default",
-    key: "1",
-  });
-
-  assert(docDeleteResult.ok);
-
-  const deletedDoc = await adapter.getDoc({
-    index: "default",
-    key: "1",
-  }).catch(() => null);
-
-  assertEquals(deletedDoc, null);
-});
-
-Deno.test("delete index", async () => {
-  const deleteResult = await adapter.deleteIndex("default");
-  assert(deleteResult.ok);
-});
+test("add docs and search", () =>
+  setup("test-6")
+    .chain(() => addAll("test-6")(movies))
+    .map((v) => (assert(v.ok), v))
+    .chain(() => search("test-6")("Dune"))
+    .map((v) => (assert(v.ok), v))
+    //.map((v) => (console.log(v), v))
+    .chain(cleanup("test-6"))
+    .toPromise());
