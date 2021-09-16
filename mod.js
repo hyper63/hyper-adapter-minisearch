@@ -12,6 +12,7 @@ export default function (config = { dir: "." }) {
       const db = new DB(path.join(config.dir, "hyper-search.db"));
 
       self.addEventListener("unload", () => {
+        console.log("closing search db");
         if (db) {
           try {
             db.close(true);

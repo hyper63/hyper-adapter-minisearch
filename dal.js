@@ -64,8 +64,7 @@ export default function (db) {
             db.query(list, [type]).map(([parent, doc]) => ({
               parent: parent,
               doc: JSON.parse(doc),
-            }))
-              .map((v) => (console.log(v), v)),
+            })),
         ),
     removeByParent: (parent) =>
       Promise.resolve(parent)

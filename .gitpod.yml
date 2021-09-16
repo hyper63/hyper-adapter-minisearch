@@ -2,7 +2,10 @@ image:
   file: .gitpod.Dockerfile
 
 tasks:
-  - init: git config core.hooksPath .hooks
+  - init: |
+      git config core.hooksPath .hooks
+    command: |
+      clear
 
 github:
   prebuilds:
