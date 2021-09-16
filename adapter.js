@@ -52,6 +52,7 @@ export default function (db) {
   const get = Async.fromPromise(db.get.bind(db));
   const put = Async.fromPromise(db.put.bind(db));
   const remove = Async.fromPromise(db.remove.bind(db));
+  const removeByParent = Async.fromPromise(db.removeByParent.bind(db));
 
   // load search engine
 
@@ -76,37 +77,40 @@ export default function (db) {
    * @param {IndexInfo}
    * @returns {Promise<Response>}
    */
-  async function createIndex({ index, mappings }) {
-    if (indexes.get(index)) {
-      return Promise.resolve({ ok: true });
-    }
-    const sindex = new MiniSearch(mappings);
-    await db.post({
-      id: index,
-      type: "index",
-      parent: "root",
-      doc: {
-        id: index,
-        mappings,
-      },
-    });
-    indexes.set(index, sindex);
-    return Promise.resolve({ ok: true });
+  function createIndex({ index, mappings }) {
+    return Async.of({ index, mappings })
+      .chain((ctx) =>
+        indexes.get(index) ? Async.Rejected({ ok: true }) : Async.Resolved(ctx)
+      )
+      .map((ctx) => (indexes.set(ctx.index, new MiniSearch(ctx.mappings)), ctx))
+      .chain((ctx) =>
+        post({
+          id: ctx.index,
+          type: "index",
+          parent: "root",
+          doc: { id: ctx.index, mappings: ctx.mappings },
+        })
+      )
+      .bichain(
+        (e) => e.ok ? Async.Resolved(e) : Async.Rejected(e),
+        (_) => Async.Resolved({ ok: true }),
+      )
+      .toPromise();
   }
 
   /**
    * @param {string} name
    * @returns {Promise<Response>}
    */
-  async function deleteIndex(name) {
-    if (!indexes.get(name)) {
-      return Promise.resolve({ ok: true });
-    }
-    indexes.delete(name);
-    await db.remove({ id: name, type: "index", parent: "root" }).then(() =>
-      db.removeByParent(name)
-    );
-    return Promise.resolve({ ok: true });
+  function deleteIndex(name) {
+    return Async.of(name)
+      .map((name) => (indexes.delete(name), name))
+      .chain((name) =>
+        remove({ id: name, type: "index", parent: "root" }).map(() => name)
+      )
+      .chain((name) => removeByParent(name))
+      .bimap(() => ({ ok: false, status: 400 }), () => ({ ok: true }))
+      .toPromise();
   }
 
   /**

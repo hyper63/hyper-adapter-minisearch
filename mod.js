@@ -1,4 +1,4 @@
-import { DB } from "./deps.js";
+import { DB, path } from "./deps.js";
 import dal from "./dal.js";
 import adapter from "./adapter.js";
 
@@ -8,7 +8,7 @@ export default function (config) {
     port: "search",
     load: () => {
       const dir = config.dir || ".";
-      const db = new DB(`${dir}/hyper-search.db`);
+      const db = new DB(path.join(dir, "hyper-search.db"));
 
       window.addEventListener("unload", () => {
         if (db) {

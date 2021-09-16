@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS docs (
   type TEXT,
   parent TEXT,
   doc TEXT,
-  timestmp TEXT,
+  timestamp TEXT,
   PRIMARY KEY (type, parent, id)
 )`;
 
@@ -16,9 +16,9 @@ CREATE INDEX IF NOT EXISTS type_idx ON docs ( type )
 `;
 
 const insert =
-  "INSERT INTO docs (id, type, parent, doc, timestmp) VALUES (?, ?, ?, ?, ?)";
+  "INSERT INTO docs (id, type, parent, doc, timestamp) VALUES (?, ?, ?, ?, ?)";
 const update =
-  "UPDATE docs set doc = ?, timestmp = ? WHERE id = ? and type = ? and parent = ?";
+  "UPDATE docs set doc = ?, timestamp = ? WHERE id = ? and type = ? and parent = ?";
 const remove = "DELETE FROM docs where type = ? AND parent = ? AND id = ?";
 const removeByParent = "DELETE FROM docs where type = 'doc' AND parent = ?";
 const get = "SELECT doc FROM docs where id = ? and type = ? and parent = ? ";

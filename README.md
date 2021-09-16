@@ -35,7 +35,7 @@ export default {
   adapter: [
     {
       port: "search",
-      plugins: [minisearch({dir: '/tmp' })],
+      plugins: [minisearch({ dir: "/tmp" })],
     },
   ],
 };
