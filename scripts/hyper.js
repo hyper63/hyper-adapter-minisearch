@@ -6,6 +6,6 @@ import search from "../mod.js";
 await hyper({
   app,
   adapters: [
-    { port: "search", plugins: [search()] },
+    { port: "search", plugins: [search({ dir: "/tmp" })] },
   ],
 });

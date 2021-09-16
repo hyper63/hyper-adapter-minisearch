@@ -5,39 +5,37 @@ const { always, allPass, keys, reduce, assoc, compose, merge, map } = R;
 // types
 
 /**
-  * @typedef {Object} Mappings
-  * @property {string} [idField] - unique id of doc
-  * @property {function} [extractField] - function used to get value of a given field if not a string. (doc, fn) -> value
-  * @property {function} [tokenize] - function used to override the tokenization of a given field
-  * @property {function} [processTerm] - function used to process each token before indexing
-  * @property {Object} [searchOptions]
-  * @property {Array} fields - fields to be used to search
-  * @property {Array} [storeFields] - fields to be return as result
-  *
-  *
-  *
-  * @typedef {Object} SearchDoc
-  * @property {string} index
-  * @property {string} key
-  * @property {Object} doc
-  *
-  * @typedef {Object} SearchInfo
-  * @property {string} index
-  * @property {string} key
-  *
-  * @typedef {Object} SearchOptions
-  * @property {Array<string>} fields
-  * @property {Object} boost
-  * @property {boolean} prefix
-  *
-  * @typedef {Object} SearchQuery
-  * @property {string} index
-  * @property {string} query
-  * @property {SearchOptions} [options]
-  *
-  * @typedef {Object} Response
-  * @property {boolean} ok
-  * @property {string} [msg]
+ * @typedef {Object} Mappings
+ * @property {string} [idField] - unique id of doc
+ * @property {function} [extractField] - function used to get value of a given field if not a string. (doc, fn) -> value
+ * @property {function} [tokenize] - function used to override the tokenization of a given field
+ * @property {function} [processTerm] - function used to process each token before indexing
+ * @property {Object} [searchOptions]
+ * @property {Array} fields - fields to be used to search
+ * @property {Array} [storeFields] - fields to be return as result
+ *
+ * @typedef {Object} SearchDoc
+ * @property {string} index
+ * @property {string} key
+ * @property {Object} doc
+ *
+ * @typedef {Object} SearchInfo
+ * @property {string} index
+ * @property {string} key
+ *
+ * @typedef {Object} SearchOptions
+ * @property {Array<string>} fields
+ * @property {Object} boost
+ * @property {boolean} prefix
+ *
+ * @typedef {Object} SearchQuery
+ * @property {string} index
+ * @property {string} query
+ * @property {SearchOptions} [options]
+ *
+ * @typedef {Object} Response
+ * @property {boolean} ok
+ * @property {string} [msg]
  */
 
 const { Async } = crocks;
@@ -164,9 +162,17 @@ export default function ({ db, se }) {
    */
   function updateDoc({ index, key, doc }) {
     return get({ id: key, parent: index, type: "doc" })
+      .chain((doc) => doc ? Async.Resolved(doc) : Async.Rejected({}))
       .chain((oldDoc) => seRemove({ index, doc: oldDoc }).map((_) => oldDoc))
-      .chain((oldDoc) =>
-        put({ id: key, parent: index, type: "doc", doc: merge(oldDoc, doc) })
+      .bichain(
+        (oldDoc) => Async.Resolved(merge(oldDoc, doc)),
+        (oldDoc) => Async.Resolved(merge(oldDoc, doc)),
+      )
+      .chain((doc) =>
+        Async.all([
+          put({ id: key, parent: index, type: "doc", doc }),
+          add({ index, doc }),
+        ])
       )
       .map(always({ ok: true }))
       .toPromise();
@@ -202,7 +208,7 @@ export default function ({ db, se }) {
           ),
         )
       )
-      .map((docs) => ({ ok: true, docs }))
+      .map((results) => ({ ok: true, results }))
       .toPromise();
   }
 
@@ -216,7 +222,6 @@ export default function ({ db, se }) {
     ));
   }
   /**
-   *
    * @param {SearchQuery}
    * @returns {Promise<Array>}
    */

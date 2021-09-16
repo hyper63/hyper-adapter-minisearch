@@ -57,7 +57,6 @@ export default function () {
   );
 
   /**
-   *
    * @param { SalDocument }
    */
   const remove = compose(
