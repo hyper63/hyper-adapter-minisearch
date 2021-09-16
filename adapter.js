@@ -162,8 +162,12 @@ export default function ({ db, se }) {
    */
   function updateDoc({ index, key, doc }) {
     return get({ id: key, parent: index, type: "doc" })
+      .chain((doc) => doc ? Async.Resolved(doc) : Async.Rejected({}))
       .chain((oldDoc) => seRemove({ index, doc: oldDoc }).map((_) => oldDoc))
-      .map((oldDoc) => merge(oldDoc, doc))
+      .bichain(
+        (oldDoc) => Async.Resolved(merge(oldDoc, doc)),
+        (oldDoc) => Async.Resolved(merge(oldDoc, doc)),
+      )
       .chain((doc) =>
         Async.all([
           put({ id: key, parent: index, type: "doc", doc }),
