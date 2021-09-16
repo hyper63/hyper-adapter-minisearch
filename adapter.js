@@ -163,8 +163,12 @@ export default function ({ db, se }) {
   function updateDoc({ index, key, doc }) {
     return get({ id: key, parent: index, type: "doc" })
       .chain((oldDoc) => seRemove({ index, doc: oldDoc }).map((_) => oldDoc))
-      .chain((oldDoc) =>
-        put({ id: key, parent: index, type: "doc", doc: merge(oldDoc, doc) })
+      .map((oldDoc) => merge(oldDoc, doc))
+      .chain((doc) =>
+        Async.all([
+          put({ id: key, parent: index, type: "doc", doc }),
+          add({ index, doc }),
+        ])
       )
       .map(always({ ok: true }))
       .toPromise();
