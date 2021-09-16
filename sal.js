@@ -1,25 +1,16 @@
 // minisearch accesslayer
 import { crocks, MiniSearch } from "./deps.js";
 
-const { tryCatch, compose } = crocks;
+const { tryCatch, compose, constant, identity  } = crocks;
 
-const fold = (m) =>
+const foldWith = fn => m =>
   m.either(
     (e) => Promise.reject({ ok: false, message: "SAL:" + e.message }),
-    (_) => Promise.resolve({ ok: true }),
-  );
-
-const foldIdentity = (m) =>
-  m.either(
-    (e) => Promise.reject({ ok: false, message: "SAL:" + e.message }),
-    (r) => Promise.resolve(r),
-  );
-
-const foldExists = (m) =>
-  m.either(
-    (e) => Promise.reject({ ok: false, message: "SAL:" + e.message }),
-    (r) => Promise.resolve(r ? true : false),
-  );
+    (_) => Promise.resolve(fn(_)),
+  )
+const fold = foldWith(constant({ok: true}))
+const foldIdentity = foldWith(identity)
+const foldExists = foldWith(Boolean)
 
 export default function () {
   const indexes = new Map();
