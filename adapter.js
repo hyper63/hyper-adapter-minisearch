@@ -1,6 +1,6 @@
 import { crocks, R } from "./deps.js";
 
-const { always, allPass, keys, reduce, assoc, compose, merge, map } = R;
+const { always, allPass, keys, reduce, assoc, compose, map } = R;
 
 // types
 
@@ -54,7 +54,7 @@ export default function ({ db, se }) {
   const list = Async.fromPromise(db.listByType.bind(db));
   const post = Async.fromPromise(db.post.bind(db));
   const get = Async.fromPromise(db.get.bind(db));
-  const put = Async.fromPromise(db.put.bind(db));
+  //const put = Async.fromPromise(db.put.bind(db));
   const remove = Async.fromPromise(db.remove.bind(db));
   const removeByParent = Async.fromPromise(db.removeByParent.bind(db));
 
@@ -97,7 +97,7 @@ export default function ({ db, se }) {
           id: ctx.index,
           type: "index",
           parent: "root",
-          doc: { id: ctx.index, mapping: ctx.mapping },
+          doc: { id: ctx.index, mappings: ctx.mappings },
         })
       )
       .bichain(
@@ -152,7 +152,14 @@ export default function ({ db, se }) {
   function getDoc({ index, key }) {
     return Async.of({ id: key, type: "doc", parent: index })
       .chain(get)
-      .map((doc) => ({ ok: true, key, doc }))
+      .chain((doc) =>
+        doc
+          ? Async.Resolved(doc)
+          : Async.Rejected({ ok: false, status: 404, msg: "not found" })
+      )
+      .map(
+        (doc) => ({ ok: true, key, doc }),
+      )
       .toPromise();
   }
 
@@ -160,6 +167,11 @@ export default function ({ db, se }) {
    * @param {SearchDoc}
    * @returns {Promise<Response>}
    */
+  // not implementing update
+  function updateDoc() {
+    return Promise.reject({ ok: false, status: 501, msg: "Not Implemented" });
+  }
+  /*
   function updateDoc({ index, key, doc }) {
     return get({ id: key, parent: index, type: "doc" })
       .chain((doc) => doc ? Async.Resolved(doc) : Async.Rejected({}))
@@ -177,6 +189,7 @@ export default function ({ db, se }) {
       .map(always({ ok: true }))
       .toPromise();
   }
+  */
 
   /**
    * @param {SearchInfo}

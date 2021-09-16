@@ -30,13 +30,13 @@ const addDoc = (index) =>
       doc,
     });
 
-const updateDoc = (index) =>
-  (doc) =>
-    Async.fromPromise(adapter.updateDoc.bind(adapter))({
-      index: index,
-      key: doc.id,
-      doc,
-    });
+// const updateDoc = (index) =>
+//   (doc) =>
+//     Async.fromPromise(adapter.updateDoc.bind(adapter))({
+//       index: index,
+//       key: doc.id,
+//       doc,
+//     });
 
 const get = (index, key) =>
   Async.fromPromise(adapter.getDoc.bind(adapter))({
@@ -89,6 +89,7 @@ test("add search doc", () =>
     .chain(cleanup("test-2"))
     .toPromise());
 
+/*
 test("update doc", () =>
   setup("test-3")
     .map(() => ({
@@ -108,6 +109,7 @@ test("update doc", () =>
     .map((res) => (assert(res.ok), res))
     .chain(cleanup("test-3"))
     .toPromise());
+*/
 
 test("get document", () =>
   setup("test-4")
