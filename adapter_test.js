@@ -1,10 +1,11 @@
 import { assert, assertEquals } from "./dev_deps.js";
 import { crocks, DB } from "./deps.js";
 import dal from "./dal.js";
+import sal from './sal.js'
 
 import createAdapter from "./adapter.js";
 
-const adapter = createAdapter(dal(new DB("./test.db")));
+const adapter = createAdapter({ db: dal(new DB("./test.db")), se: sal() });
 
 const test = Deno.test;
 const { Async } = crocks;

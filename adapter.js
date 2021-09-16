@@ -1,4 +1,4 @@
-import { crocks, MiniSearch, R } from "./deps.js";
+import { crocks, R } from "./deps.js";
 
 const { always, allPass, keys, reduce, assoc, compose, merge, map } = R;
 
@@ -15,9 +15,6 @@ const { always, allPass, keys, reduce, assoc, compose, merge, map } = R;
   * @property {Array} [storeFields] - fields to be return as result
   *
   *
-  * @typedef {Object} IndexInfo
-  * @property {string} index - index name
-  * @property {object} mappings - index setup
   *
   * @typedef {Object} SearchDoc
   * @property {string} index
@@ -45,8 +42,16 @@ const { always, allPass, keys, reduce, assoc, compose, merge, map } = R;
 
 const { Async } = crocks;
 
-export default function (db) {
-  const indexes = new Map();
+const load = fn => compose(Async.all, map(fn))
+const fork = m => m.fork(
+  (e) => console.log('ERROR: ', e.message),
+  (_) => console.log(`{
+    INFO: "loaded search engines",
+    DATE: ${new Date().toISOString()},
+  }`)
+);
+
+export default function ({ db, se }) {
   const list = Async.fromPromise(db.listByType.bind(db));
   const post = Async.fromPromise(db.post.bind(db));
   const get = Async.fromPromise(db.get.bind(db));
@@ -54,61 +59,52 @@ export default function (db) {
   const remove = Async.fromPromise(db.remove.bind(db));
   const removeByParent = Async.fromPromise(db.removeByParent.bind(db));
 
-  // load search engine
+  const create = Async.fromPromise(se.create.bind(se));
+  const destroy = Async.fromPromise(se.destroy.bind(se));
+  const add = Async.fromPromise(se.add.bind(se))
+  const seRemove = Async.fromPromise(se.remove.bind(se))
+  const seBulk = Async.fromPromise(se.bulk.bind(se))
+  const search = Async.fromPromise(se.search.bind(se))
+  const exists = Async.fromPromise(se.exists.bind(se))
 
-  list("index")
-    .map(
-      map((
-        { doc },
-      ) => (indexes.set(doc.id, new MiniSearch(doc.mappings)), doc)),
-    )
-    .chain(() => list("doc"))
-    .map(map((record) => indexes.get(record.parent).add(record.doc)))
-    .fork(
-      (e) => console.log(e),
-      (_) =>
-        console.log({
-          INFO: "loaded search engines",
-          DATE: new Date().toISOString(),
-        }),
-    );
+  // load search engine
+  fork(
+    list("index")
+      .chain(load(({ doc }) => create({ index: doc.id, mappings: doc.mappings })))
+      .chain(() => list("doc"))
+      .chain(load(record => add({ index: record.parent, doc: record.doc })))
+  )
 
   /**
-   * @param {IndexInfo}
+   * @typedef {Object} SearchIndex
+   * @property {string} index - index name
+   * @property {object} mappings - index setup
+   * 
+   * @param {SearchIndex}
    * @returns {Promise<Response>}
    */
   function createIndex({ index, mappings }) {
-    return Async.of({ index, mappings })
-      .chain((ctx) =>
-        indexes.get(index) ? Async.Rejected({ ok: true }) : Async.Resolved(ctx)
-      )
-      .map((ctx) => (indexes.set(ctx.index, new MiniSearch(ctx.mappings)), ctx))
-      .chain((ctx) =>
-        post({
-          id: ctx.index,
-          type: "index",
-          parent: "root",
-          doc: { id: ctx.index, mappings: ctx.mappings },
-        })
-      )
+    return exists(index)
+      .chain(exists => exists ? Async.Rejected({ ok: true }) : Async.Resolved({ index, mappings }))
+      .chain(create).map(_ => ({ index, mappings }))
+      .chain(ctx => post({ id: ctx.index, type: 'index', parent: 'root', doc: { id: ctx.index, mapping: ctx.mapping } }))
       .bichain(
-        (e) => e.ok ? Async.Resolved(e) : Async.Rejected(e),
-        (_) => Async.Resolved({ ok: true }),
+        e => e.ok ? Async.Resolved(e) : Async.Rejected(e),
+        _ => Async.Resolved({ ok: true })
       )
-      .toPromise();
+      .toPromise()
   }
 
   /**
-   * @param {string} name
+   * @param {string} index
    * @returns {Promise<Response>}
    */
-  function deleteIndex(name) {
-    return Async.of(name)
-      .map((name) => (indexes.delete(name), name))
-      .chain((name) =>
-        remove({ id: name, type: "index", parent: "root" }).map(() => name)
+  function deleteIndex(index) {
+    return destroy(index)
+      .chain((index) =>
+        remove({ id: index, type: "index", parent: "root" }).map(() => index)
       )
-      .chain((name) => removeByParent(name))
+      .chain((index) => removeByParent(index))
       .bimap(() => ({ ok: false, status: 400 }), () => ({ ok: true }))
       .toPromise();
   }
@@ -133,8 +129,7 @@ export default function (db) {
           )
       )
       .chain(post)
-      .map(() => indexes.get(index).add(assoc("id", key, doc)))
-      .map(() => ({ ok: true }))
+      .chain(() => add({ index, doc: assoc("id", key, doc) }))
       .toPromise();
   }
 
@@ -155,8 +150,7 @@ export default function (db) {
    */
   function updateDoc({ index, key, doc }) {
     return get({ id: key, parent: index, type: "doc" })
-      .map((_) => (console.log(_), _))
-      .map((oldDoc) => (indexes.get(index).remove(oldDoc), oldDoc))
+      .chain(oldDoc => seRemove({ index, doc: oldDoc }).map(_ => oldDoc))
       .chain((oldDoc) =>
         put({ id: key, parent: index, type: "doc", doc: merge(oldDoc, doc) })
       )
@@ -171,7 +165,7 @@ export default function (db) {
   function removeDoc({ index, key }) {
     return Async.of({ id: key, type: "doc", parent: index })
       .chain(get)
-      .map((oldDoc) => (indexes.get(index).remove(oldDoc), oldDoc))
+      .chain(oldDoc => seRemove({ index, doc: oldDoc }).map(_ => oldDoc))
       .chain(() => remove({ id: key, type: "doc", parent: index }))
       .map(always({ ok: true }))
       .toPromise();
@@ -182,8 +176,7 @@ export default function (db) {
    * @returns {Promise<ResponseWitResults>}
    */
   function bulk({ index, docs }) {
-    return Async.of({ parent: index, docs })
-      .map((ctx) => (indexes.get(ctx.parent).addAll(ctx.docs), ctx))
+    return seBulk({ index, docs }).map(_ => ({ parent: index, docs }))
       .chain((ctx) =>
         Async.all(
           map(
@@ -219,7 +212,6 @@ export default function (db) {
     }
     if (!query) return Promise.reject({ ok: false, msg: "query is required!" });
 
-    const search = indexes.get(index);
     let options = {};
     // if fields
     options = fields ? { ...options, fields } : options;
@@ -227,8 +219,9 @@ export default function (db) {
       options = { ...options, filter: createFilterFn(filter) };
     }
 
-    const results = search.search(query, options);
-    return Promise.resolve({ ok: true, matches: results });
+    return search({ index, query, options })
+      .map(matches => ({ ok: true, matches }))
+      .toPromise();
   }
 
   return Object.freeze({

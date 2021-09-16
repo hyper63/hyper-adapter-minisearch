@@ -1,5 +1,7 @@
 import { DB, path } from "./deps.js";
 import dal from "./dal.js";
+import sal from './sal.js'
+
 import adapter from "./adapter.js";
 
 export default function (config) {
@@ -20,8 +22,8 @@ export default function (config) {
         }
       });
 
-      return dal(db);
+      return ({db: dal(db), se: sal()});
     },
-    link: (db) => () => adapter(db),
+    link: (env) => () => adapter(env),
   });
 }
