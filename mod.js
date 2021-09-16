@@ -1,6 +1,6 @@
 import { DB, path } from "./deps.js";
 import dal from "./dal.js";
-import sal from './sal.js'
+import sal from "./sal.js";
 
 import adapter from "./adapter.js";
 
@@ -22,7 +22,7 @@ export default function (config) {
         }
       });
 
-      return ({db: dal(db), se: sal()});
+      return ({ db: dal(db), se: sal() });
     },
     link: (env) => () => adapter(env),
   });

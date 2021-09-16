@@ -42,14 +42,15 @@ const { always, allPass, keys, reduce, assoc, compose, merge, map } = R;
 
 const { Async } = crocks;
 
-const load = fn => compose(Async.all, map(fn))
-const fork = m => m.fork(
-  (e) => console.log('ERROR: ', e.message),
-  (_) => console.log(`{
-    INFO: "loaded search engines",
-    DATE: ${new Date().toISOString()},
-  }`)
-);
+const load = (fn) => compose(Async.all, map(fn));
+const fork = (m) =>
+  m.fork(
+    (e) => console.log("ERROR: ", e.message),
+    (_) =>
+      console.log(
+        `{ INFO: "loaded search engines", DATE: ${new Date().toISOString()} }`,
+      ),
+  );
 
 export default function ({ db, se }) {
   const list = Async.fromPromise(db.listByType.bind(db));
@@ -61,38 +62,51 @@ export default function ({ db, se }) {
 
   const create = Async.fromPromise(se.create.bind(se));
   const destroy = Async.fromPromise(se.destroy.bind(se));
-  const add = Async.fromPromise(se.add.bind(se))
-  const seRemove = Async.fromPromise(se.remove.bind(se))
-  const seBulk = Async.fromPromise(se.bulk.bind(se))
-  const search = Async.fromPromise(se.search.bind(se))
-  const exists = Async.fromPromise(se.exists.bind(se))
+  const add = Async.fromPromise(se.add.bind(se));
+  const seRemove = Async.fromPromise(se.remove.bind(se));
+  const seBulk = Async.fromPromise(se.bulk.bind(se));
+  const search = Async.fromPromise(se.search.bind(se));
+  const exists = Async.fromPromise(se.exists.bind(se));
 
   // load search engine
   fork(
     list("index")
-      .chain(load(({ doc }) => create({ index: doc.id, mappings: doc.mappings })))
+      .chain(
+        load(({ doc }) => create({ index: doc.id, mappings: doc.mappings })),
+      )
       .chain(() => list("doc"))
-      .chain(load(record => add({ index: record.parent, doc: record.doc })))
-  )
+      .chain(load((record) => add({ index: record.parent, doc: record.doc }))),
+  );
 
   /**
    * @typedef {Object} SearchIndex
    * @property {string} index - index name
    * @property {object} mappings - index setup
-   * 
+   *
    * @param {SearchIndex}
    * @returns {Promise<Response>}
    */
   function createIndex({ index, mappings }) {
     return exists(index)
-      .chain(exists => exists ? Async.Rejected({ ok: true }) : Async.Resolved({ index, mappings }))
-      .chain(create).map(_ => ({ index, mappings }))
-      .chain(ctx => post({ id: ctx.index, type: 'index', parent: 'root', doc: { id: ctx.index, mapping: ctx.mapping } }))
-      .bichain(
-        e => e.ok ? Async.Resolved(e) : Async.Rejected(e),
-        _ => Async.Resolved({ ok: true })
+      .chain((exists) =>
+        exists
+          ? Async.Rejected({ ok: true })
+          : Async.Resolved({ index, mappings })
       )
-      .toPromise()
+      .chain(create).map((_) => ({ index, mappings }))
+      .chain((ctx) =>
+        post({
+          id: ctx.index,
+          type: "index",
+          parent: "root",
+          doc: { id: ctx.index, mapping: ctx.mapping },
+        })
+      )
+      .bichain(
+        (e) => e.ok ? Async.Resolved(e) : Async.Rejected(e),
+        (_) => Async.Resolved({ ok: true }),
+      )
+      .toPromise();
   }
 
   /**
@@ -100,11 +114,11 @@ export default function ({ db, se }) {
    * @returns {Promise<Response>}
    */
   function deleteIndex(index) {
-    return destroy(index)
-      .chain((index) =>
-        remove({ id: index, type: "index", parent: "root" }).map(() => index)
-      )
-      .chain((index) => removeByParent(index))
+    return Async.all([
+      destroy(index),
+      remove({ id: index, type: "index", parent: "root" }),
+      removeByParent(index),
+    ])
       .bimap(() => ({ ok: false, status: 400 }), () => ({ ok: true }))
       .toPromise();
   }
@@ -150,7 +164,7 @@ export default function ({ db, se }) {
    */
   function updateDoc({ index, key, doc }) {
     return get({ id: key, parent: index, type: "doc" })
-      .chain(oldDoc => seRemove({ index, doc: oldDoc }).map(_ => oldDoc))
+      .chain((oldDoc) => seRemove({ index, doc: oldDoc }).map((_) => oldDoc))
       .chain((oldDoc) =>
         put({ id: key, parent: index, type: "doc", doc: merge(oldDoc, doc) })
       )
@@ -165,7 +179,7 @@ export default function ({ db, se }) {
   function removeDoc({ index, key }) {
     return Async.of({ id: key, type: "doc", parent: index })
       .chain(get)
-      .chain(oldDoc => seRemove({ index, doc: oldDoc }).map(_ => oldDoc))
+      .chain((oldDoc) => seRemove({ index, doc: oldDoc }).map((_) => oldDoc))
       .chain(() => remove({ id: key, type: "doc", parent: index }))
       .map(always({ ok: true }))
       .toPromise();
@@ -176,7 +190,7 @@ export default function ({ db, se }) {
    * @returns {Promise<ResponseWitResults>}
    */
   function bulk({ index, docs }) {
-    return seBulk({ index, docs }).map(_ => ({ parent: index, docs }))
+    return seBulk({ index, docs }).map((_) => ({ parent: index, docs }))
       .chain((ctx) =>
         Async.all(
           map(
@@ -220,7 +234,7 @@ export default function ({ db, se }) {
     }
 
     return search({ index, query, options })
-      .map(matches => ({ ok: true, matches }))
+      .map((matches) => ({ ok: true, matches }))
       .toPromise();
   }
 

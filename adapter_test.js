@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "./dev_deps.js";
 import { crocks, DB } from "./deps.js";
 import dal from "./dal.js";
-import sal from './sal.js'
+import sal from "./sal.js";
 
 import createAdapter from "./adapter.js";
 
