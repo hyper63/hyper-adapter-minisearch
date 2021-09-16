@@ -200,7 +200,7 @@ export default function ({ db, se }) {
           ),
         )
       )
-      .map((docs) => ({ ok: true, docs }))
+      .map((results) => ({ ok: true, results }))
       .toPromise();
   }
 
