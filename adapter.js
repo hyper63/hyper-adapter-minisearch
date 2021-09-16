@@ -35,6 +35,7 @@ const { always, allPass, keys, reduce, assoc, compose, map } = R;
  *
  * @typedef {Object} Response
  * @property {boolean} ok
+ * @property {number} [status]
  * @property {string} [msg]
  */
 
