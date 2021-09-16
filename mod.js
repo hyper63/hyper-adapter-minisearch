@@ -12,7 +12,7 @@ export default function (config) {
       const dir = config.dir || ".";
       const db = new DB(path.join(dir, "hyper-search.db"));
 
-      window.addEventListener("unload", () => {
+      self.addEventListener("unload", () => {
         if (db) {
           try {
             db.close(true);
