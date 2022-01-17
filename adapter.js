@@ -215,7 +215,8 @@ export default function ({ db, se }) {
         Async.all(
           map(
             compose(
-              post,
+              (indexDoc) =>
+                post(indexDoc).map((_) => ({ ok: true, id: indexDoc.id })),
               (doc) => ({ id: doc.id, type: "doc", parent: ctx.parent, doc }),
             ),
             docs,
