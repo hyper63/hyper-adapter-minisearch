@@ -63,7 +63,7 @@ const addAll = (index) =>
       docs,
     });
 
-const search = (index) =>
+const query = (index) =>
   (query) =>
     Async.fromPromise(adapter.query.bind(adapter))({
       index,
@@ -73,6 +73,17 @@ const search = (index) =>
 test("create index", () =>
   setup("test-1")
     .map((res) => assert(res.ok))
+    .chain(cleanup("test-1"))
+    .toPromise());
+
+test("create index - already exists", () =>
+  setup("test-1")
+    .chain(() => setup("test-1"))
+    .map((res) => {
+      assert(!res.ok);
+      assert(res.msg);
+      assertEquals(res.status, 409);
+    })
     .chain(cleanup("test-1"))
     .toPromise());
 
@@ -86,6 +97,24 @@ test("add search doc", () =>
     }))
     .chain(addDoc("test-2"))
     .map((res) => (assert(res.ok), res))
+    .chain(cleanup("test-2"))
+    .toPromise());
+
+test("add search doc - already exists", () =>
+  setup("test-2")
+    .map(() => ({
+      id: "1",
+      title: "SOC",
+      body: "hello world",
+      category: "any",
+    }))
+    .chain((doc) => addDoc("test-2")(doc).map(() => doc))
+    .chain(addDoc("test-2")) // add it again
+    .map((res) => {
+      assert(!res.ok);
+      assert(res.msg);
+      assertEquals(res.status, 409);
+    })
     .chain(cleanup("test-2"))
     .toPromise());
 
@@ -121,6 +150,17 @@ test("get document", () =>
     .chain(cleanup("test-4"))
     .toPromise());
 
+test("get document - not found", () =>
+  setup("test-4")
+    .chain(() => get("test-4", "not-found"))
+    .map((res) => {
+      assert(!res.ok);
+      assert(res.msg);
+      assertEquals(res.status, 404);
+    })
+    .chain(cleanup("test-4"))
+    .toPromise());
+
 test("remove document", () =>
   setup("test-5")
     .map(() => ({ id: "4", type: "movie", title: "Dune" }))
@@ -130,12 +170,45 @@ test("remove document", () =>
     .chain(cleanup("test-5"))
     .toPromise());
 
-test("add docs and search", () =>
+test("remove document - not found", () =>
+  setup("test-5")
+    .chain(() => remove("test-5", "not-found"))
+    .map((res) => {
+      assert(!res.ok);
+      assert(res.msg);
+      assertEquals(res.status, 404);
+    })
+    .chain(cleanup("test-5"))
+    .toPromise());
+
+test("add docs and query", () =>
   setup("test-6")
     .chain(() => addAll("test-6")(movies))
     .map((v) => (assert(v.ok), v))
-    .chain(() => search("test-6")("Dune"))
+    .chain(() => query("test-6")("Dune"))
     .map((v) => (assert(v.ok), v))
     //.map((v) => (console.log(v), v))
+    .chain(cleanup("test-6"))
+    .toPromise());
+
+test("add docs and query - no index", () =>
+  setup("test-6")
+    .chain(() => query()("Dune"))
+    .map((res) => {
+      assert(!res.ok);
+      assertEquals(res.msg, "index name is required!");
+      assertEquals(res.status, 422);
+    })
+    .chain(cleanup("test-6"))
+    .toPromise());
+
+test("add docs and query - no query", () =>
+  setup("test-6")
+    .chain(() => query("test-6")())
+    .map((res) => {
+      assert(!res.ok);
+      assertEquals(res.msg, "query is required!");
+      assertEquals(res.status, 422);
+    })
     .chain(cleanup("test-6"))
     .toPromise());
