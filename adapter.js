@@ -1,4 +1,5 @@
 import { crocks, R } from "./deps.js";
+import { handleHyperErr, HyperErr } from "./utils.js";
 
 const { always, allPass, keys, reduce, assoc, compose, map } = R;
 
@@ -89,7 +90,9 @@ export default function ({ db, se }) {
     return exists(index)
       .chain((exists) =>
         exists
-          ? Async.Rejected({ ok: true })
+          ? Async.Rejected(
+            HyperErr({ status: 409, msg: "index already exists" }),
+          )
           : Async.Resolved({ index, mappings })
       )
       .chain(create).map((_) => ({ index, mappings }))
@@ -102,7 +105,7 @@ export default function ({ db, se }) {
         })
       )
       .bichain(
-        (e) => e.ok ? Async.Resolved(e) : Async.Rejected(e),
+        handleHyperErr,
         (_) => Async.Resolved({ ok: true }),
       )
       .toPromise();
@@ -118,7 +121,11 @@ export default function ({ db, se }) {
       remove({ id: index, type: "index", parent: "root" }),
       removeByParent(index),
     ])
-      .bimap(() => ({ ok: false, status: 400 }), () => ({ ok: true }))
+      .bimap(() => HyperErr({ status: 400 }), () => ({ ok: true }))
+      .bichain(
+        handleHyperErr,
+        Async.Resolved,
+      )
       .toPromise();
   }
 
@@ -133,16 +140,19 @@ export default function ({ db, se }) {
           // if doc exists then reject as 409 conflict
           .chain((doc) =>
             doc
-              ? Async.Rejected({
-                ok: false,
+              ? Async.Rejected(HyperErr({
                 status: 409,
                 msg: "document conflict",
-              })
+              }))
               : Async.Resolved(ctx)
           )
       )
       .chain(post)
       .chain(() => add({ index, doc: assoc("id", key, doc) }))
+      .bichain(
+        handleHyperErr,
+        Async.Resolved,
+      )
       .toPromise();
   }
 
@@ -156,10 +166,14 @@ export default function ({ db, se }) {
       .chain((doc) =>
         doc
           ? Async.Resolved(doc)
-          : Async.Rejected({ ok: false, status: 404, msg: "not found" })
+          : Async.Rejected(HyperErr({ status: 404, msg: "not found" }))
       )
       .map(
         (doc) => ({ ok: true, key, doc }),
+      )
+      .bichain(
+        handleHyperErr,
+        Async.Resolved,
       )
       .toPromise();
   }
@@ -170,7 +184,7 @@ export default function ({ db, se }) {
    */
   // not implementing update
   function updateDoc() {
-    return Promise.reject({ ok: false, status: 501, msg: "Not Implemented" });
+    return Promise.resolve(HyperErr({ status: 501, msg: "Not Implemented" }));
   }
   /*
   function updateDoc({ index, key, doc }) {
@@ -199,9 +213,18 @@ export default function ({ db, se }) {
   function removeDoc({ index, key }) {
     return Async.of({ id: key, type: "doc", parent: index })
       .chain(get)
+      .chain((doc) =>
+        doc
+          ? Async.Resolved(doc)
+          : Async.Rejected(HyperErr({ status: 404, msg: "not found" }))
+      )
       .chain((oldDoc) => seRemove({ index, doc: oldDoc }).map((_) => oldDoc))
       .chain(() => remove({ id: key, type: "doc", parent: index }))
       .map(always({ ok: true }))
+      .bichain(
+        handleHyperErr,
+        Async.Resolved,
+      )
       .toPromise();
   }
 
@@ -224,6 +247,10 @@ export default function ({ db, se }) {
         )
       )
       .map((results) => ({ ok: true, results }))
+      .bichain(
+        handleHyperErr,
+        Async.Resolved,
+      )
       .toPromise();
   }
 
@@ -241,20 +268,34 @@ export default function ({ db, se }) {
    * @returns {Promise<Array>}
    */
   function query({ index, q: { query, fields, filter } }) {
-    if (!index) {
-      return Promise.reject({ ok: false, msg: "index name is required!" });
-    }
-    if (!query) return Promise.reject({ ok: false, msg: "query is required!" });
+    return Async.of({ query, index, filter })
+      .chain(({ query, index, filter }) => {
+        if (!index) {
+          return Async.Rejected(
+            HyperErr({ status: 422, msg: "index name is required!" }),
+          );
+        }
+        if (!query) {
+          return Async.Rejected(
+            HyperErr({ status: 422, msg: "query is required!" }),
+          );
+        }
 
-    let options = {};
-    // if fields
-    options = fields ? { ...options, fields } : options;
-    if (filter) {
-      options = { ...options, filter: createFilterFn(filter) };
-    }
+        let options = {};
+        // if fields
+        options = fields ? { ...options, fields } : options;
+        if (filter) {
+          options = { ...options, filter: createFilterFn(filter) };
+        }
 
-    return search({ index, query, options })
+        return Async.Resolved(options);
+      })
+      .chain((options) => search({ index, query, options }))
       .map((matches) => ({ ok: true, matches }))
+      .bichain(
+        handleHyperErr,
+        Async.Resolved,
+      )
       .toPromise();
   }
 
