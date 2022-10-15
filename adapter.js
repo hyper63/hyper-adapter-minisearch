@@ -1,6 +1,6 @@
 import { crocks, HyperErr, isHyperErr, R } from "./deps.js";
 
-const { always, allPass, keys, reduce, assoc, compose, map, ifElse } = R;
+const { identity, always, allPass, keys, reduce, compose, map, ifElse } = R;
 
 // types
 
@@ -139,21 +139,32 @@ export default function ({ db, se }) {
    * @returns {Promise<Response>}
    */
   function indexDoc({ index, key, doc }) {
-    return Async.of({ id: key, type: "doc", parent: index, doc })
+    return Async.of({
+      id: key,
+      type: "doc",
+      parent: index,
+      /**
+       * Ensure the doc has an _id field
+       * by setting to key, if not defined
+       * already on doc (spread will overrite if already defined)
+       */
+      doc: { _id: key, ...doc },
+    })
       .chain((ctx) =>
         get(ctx)
           // if doc exists then reject as 409 conflict
-          .chain((doc) =>
-            doc
-              ? Async.Rejected(HyperErr({
+          .chain(ifElse(
+            identity,
+            () =>
+              Async.Rejected(HyperErr({
                 status: 409,
                 msg: "document conflict",
-              }))
-              : Async.Resolved(ctx)
-          )
+              })),
+            Async.Resolved,
+          ))
+          .chain(() => post(ctx))
+          .chain(() => add({ index, doc: ctx.doc }))
       )
-      .chain(post)
-      .chain(() => add({ index, doc: assoc("id", key, doc) }))
       .bichain(
         handleHyperErr,
         Async.Resolved,
@@ -238,18 +249,45 @@ export default function ({ db, se }) {
    * @returns {Promise<ResponseWitResults>}
    */
   function bulk({ index, docs }) {
-    return seBulk({ index, docs }).map((_) => ({ parent: index, docs }))
-      .chain((ctx) =>
-        Async.all(
-          map(
-            compose(
-              (indexDoc) =>
-                post(indexDoc).map((_) => ({ ok: true, id: indexDoc.id })),
-              (doc) => ({ id: doc.id, type: "doc", parent: ctx.parent, doc }),
-            ),
-            docs,
-          ),
-        )
+    return Async.of({
+      index,
+      docs: docs.map((d) => ({
+        ...d,
+        /**
+         * Ensure the doc has an _id field
+         * by setting to key, if not defined
+         * already on doc (spread will overrite if already defined)
+         */
+        _id: d._id || d.id,
+      })),
+    })
+      .chain(({ index, docs }) =>
+        seBulk({ index, docs })
+          /**
+           * persist each doc
+           * so that they can be loaded later
+           */
+          .chain(() =>
+            Async.all(
+              map(
+                compose(
+                  (indexDoc) =>
+                    post(indexDoc).map((_) => ({
+                      ok: true,
+                      id: indexDoc.key,
+                    })),
+                  (doc) => ({
+                    // Every doc is guaranteed to have an _id at this point
+                    id: doc._id,
+                    type: "doc",
+                    parent: index,
+                    doc,
+                  }),
+                ),
+                docs,
+              ),
+            )
+          )
       )
       .map((results) => ({ ok: true, results }))
       .bichain(

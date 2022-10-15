@@ -29,7 +29,7 @@ export default function () {
   const create = compose(
     fold,
     tryCatch(({ index, mappings }) =>
-      indexes.set(index, new MiniSearch(mappings))
+      indexes.set(index, new MiniSearch({ ...mappings, idField: "_id" }))
     ),
   );
 

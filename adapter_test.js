@@ -25,7 +25,7 @@ const cleanup = (name) => () =>
 const addDoc = (index) => (doc) =>
   Async.fromPromise(adapter.indexDoc.bind(adapter))({
     index: index,
-    key: doc.id,
+    key: doc._id,
     doc,
   });
 
@@ -33,7 +33,7 @@ const addDoc = (index) => (doc) =>
 //   (doc) =>
 //     Async.fromPromise(adapter.updateDoc.bind(adapter))({
 //       index: index,
-//       key: doc.id,
+//       key: doc._id,
 //       doc,
 //     });
 
@@ -48,12 +48,6 @@ const remove = (index, key) =>
     index,
     key,
   });
-
-const movies = [
-  { id: "movie-1", type: "movie", title: "Ghostbusters" },
-  { id: "movie-2", type: "movie", title: "Dune" },
-  { id: "movie-3", type: "movie", title: "Jaws" },
-];
 
 const addAll = (index) => (docs) =>
   Async.fromPromise(adapter.bulk.bind(adapter))({
@@ -90,7 +84,7 @@ test("indexDoc", async (t) => {
   await t.step("index doc", () =>
     setup("test-2")
       .map(() => ({
-        id: "1",
+        _id: "1",
         title: "SOC",
         body: "hello world",
         category: "any",
@@ -103,7 +97,7 @@ test("indexDoc", async (t) => {
   await t.step("index doc - already exists", () =>
     setup("test-2")
       .map(() => ({
-        id: "1",
+        _id: "1",
         title: "SOC",
         body: "hello world",
         category: "any",
@@ -119,32 +113,36 @@ test("indexDoc", async (t) => {
       .toPromise());
 });
 
-/*
-test("update doc", () =>
-  setup("test-3")
-    .map(() => ({
-      id: "1",
-      title: "Ghostbusters",
-      type: "movie",
-      category: "scifi",
-    }))
-    .chain(addDoc("test-3"))
-    .map(() => ({
-      id: "1",
-      title: "Ghostbusters 2",
-      type: "movie",
-      category: "scifi",
-    }))
-    .chain(updateDoc("test-3"))
-    .map((res) => (assert(res.ok), res))
-    .chain(cleanup("test-3"))
-    .toPromise());
-*/
+// /*
+// test("update doc", () =>
+//   setup("test-3")
+//     .map(() => ({
+//       _id: "1",
+//       title: "Ghostbusters",
+//       type: "movie",
+//       category: "scifi",
+//     }))
+//     .chain(addDoc("test-3"))
+//     .map(() => ({
+//       _id: "1",
+//       title: "Ghostbusters 2",
+//       type: "movie",
+//       category: "scifi",
+//     }))
+//     .chain(updateDoc("test-3"))
+//     .map((res) => (assert(res.ok), res))
+//     .chain(cleanup("test-3"))
+//     .toPromise());
+// */
 
 test("getDoc", async (t) => {
   await t.step("get document", () =>
     setup("test-4")
-      .map(() => ({ id: "3", type: "movie", title: "Jaws" }))
+      .map(() => ({
+        _id: "3",
+        type: "movie",
+        title: "Jaws",
+      }))
       .chain(addDoc("test-4"))
       .chain(() => get("test-4", "3"))
       .map((v) => (assert(v.ok), v))
@@ -167,7 +165,7 @@ test("getDoc", async (t) => {
 test("removeDoc", async (t) => {
   await t.step("remove document", () =>
     setup("test-5")
-      .map(() => ({ id: "4", type: "movie", title: "Dune" }))
+      .map(() => ({ _id: "4", type: "movie", title: "Dune" }))
       .chain(addDoc("test-5"))
       .chain(() => remove("test-5", "4"))
       .map((v) => (assert(v.ok), v))
@@ -186,10 +184,32 @@ test("removeDoc", async (t) => {
       .toPromise());
 });
 
-test("query", async (t) => {
-  await t.step("add docs and query", () =>
+test("bulk and query", async (t) => {
+  await t.step("bulk add and query", () =>
     setup("test-6")
-      .chain(() => addAll("test-6")(movies))
+      .chain(() =>
+        addAll("test-6")([
+          { _id: "movie-1", type: "movie", title: "Ghostbusters" },
+          { _id: "movie-2", type: "movie", title: "Dune" },
+          { _id: "movie-3", type: "movie", title: "Jaws" },
+        ])
+      )
+      .map((v) => (assert(v.ok), v))
+      .chain(() => query("test-6")("Dune"))
+      .map((v) => (assert(v.ok), v))
+      //.map((v) => (console.log(v), v))
+      .chain(cleanup("test-6"))
+      .toPromise());
+
+  await t.step("bulk add and query - with id", () =>
+    setup("test-6")
+      .chain(() =>
+        addAll("test-6")([
+          { id: "movie-1", type: "movie", title: "Ghostbusters" },
+          { id: "movie-2", type: "movie", title: "Dune" },
+          { id: "movie-3", type: "movie", title: "Jaws" },
+        ])
+      )
       .map((v) => (assert(v.ok), v))
       .chain(() => query("test-6")("Dune"))
       .map((v) => (assert(v.ok), v))
