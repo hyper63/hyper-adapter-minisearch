@@ -3,12 +3,11 @@ import { crocks, MiniSearch } from "./deps.js";
 
 const { tryCatch, compose, constant, identity } = crocks;
 
-const foldWith = (fn) =>
-  (m) =>
-    m.either(
-      (e) => Promise.reject({ ok: false, message: "SAL:" + e.message }),
-      (_) => Promise.resolve(fn(_)),
-    );
+const foldWith = (fn) => (m) =>
+  m.either(
+    (e) => Promise.reject({ ok: false, message: "SAL:" + e.message }),
+    (_) => Promise.resolve(fn(_)),
+  );
 const fold = foldWith(constant({ ok: true }));
 const foldIdentity = foldWith(identity);
 const foldExists = foldWith(Boolean);

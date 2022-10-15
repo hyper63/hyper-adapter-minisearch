@@ -19,16 +19,15 @@ const setup = (name) =>
     },
   });
 
-const cleanup = (name) =>
-  () => Async.fromPromise(adapter.deleteIndex.bind(adapter))(name);
+const cleanup = (name) => () =>
+  Async.fromPromise(adapter.deleteIndex.bind(adapter))(name);
 
-const addDoc = (index) =>
-  (doc) =>
-    Async.fromPromise(adapter.indexDoc.bind(adapter))({
-      index: index,
-      key: doc.id,
-      doc,
-    });
+const addDoc = (index) => (doc) =>
+  Async.fromPromise(adapter.indexDoc.bind(adapter))({
+    index: index,
+    key: doc.id,
+    doc,
+  });
 
 // const updateDoc = (index) =>
 //   (doc) =>
@@ -56,19 +55,17 @@ const movies = [
   { id: "movie-3", type: "movie", title: "Jaws" },
 ];
 
-const addAll = (index) =>
-  (docs) =>
-    Async.fromPromise(adapter.bulk.bind(adapter))({
-      index,
-      docs,
-    });
+const addAll = (index) => (docs) =>
+  Async.fromPromise(adapter.bulk.bind(adapter))({
+    index,
+    docs,
+  });
 
-const query = (index) =>
-  (query) =>
-    Async.fromPromise(adapter.query.bind(adapter))({
-      index,
-      q: { query },
-    });
+const query = (index) => (query) =>
+  Async.fromPromise(adapter.query.bind(adapter))({
+    index,
+    q: { query },
+  });
 
 test("create index", () =>
   setup("test-1")

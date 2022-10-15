@@ -1,7 +1,6 @@
-import { crocks, R } from "./deps.js";
-import { handleHyperErr, HyperErr } from "./utils.js";
+import { crocks, HyperErr, isHyperErr, R } from "./deps.js";
 
-const { always, allPass, keys, reduce, assoc, compose, map } = R;
+const { always, allPass, keys, reduce, assoc, compose, map, ifElse } = R;
 
 // types
 
@@ -41,6 +40,12 @@ const { always, allPass, keys, reduce, assoc, compose, map } = R;
  */
 
 const { Async } = crocks;
+
+const handleHyperErr = ifElse(
+  isHyperErr,
+  Async.Resolved,
+  Async.Rejected,
+);
 
 const load = (fn) => compose(Async.all, map(fn));
 const fork = (m) =>
