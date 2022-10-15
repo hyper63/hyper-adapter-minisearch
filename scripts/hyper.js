@@ -1,5 +1,5 @@
-import hyper from "https://x.nest.land/hyper@3.0.0/mod.js";
-import app from "https://x.nest.land/hyper-app-opine@2.0.0/mod.js";
+import hyper from "https://x.nest.land/hyper@3.3.0/mod.js";
+import app from "https://x.nest.land/hyper-app-opine@2.2.0/mod.js";
 
 import search from "../mod.js";
 
