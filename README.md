@@ -21,24 +21,24 @@
 
 ## Background
 
-[`Minisearch`](https://www.npmjs.com/package/minisearch) is a tiny but powerful
-in-memory fulltext search engine written in JavaScript. It is respectful of
-resources, and it can comfortably run both in Node and in the browser.
+[`Minisearch`](https://www.npmjs.com/package/minisearch) is a tiny but powerful in-memory fulltext
+search engine written in JavaScript. It is respectful of resources, and it can comfortably run both
+in Node and in the browser.
 
 ## Getting Started
 
 ```js
-import { default as minisearch } from "https://x.nest.land/hyper-adapter-minisearch@1.0.10/mod.js";
+import { default as minisearch } from 'https://x.nest.land/hyper-adapter-minisearch@1.0.10/mod.js'
 
 export default {
   app: opine,
   adapter: [
     {
-      port: "search",
-      plugins: [minisearch({ dir: "/tmp" })],
+      port: 'search',
+      plugins: [minisearch({ dir: '/tmp' })],
     },
   ],
-};
+}
 ```
 
 ## Installation
@@ -49,7 +49,7 @@ This is a Deno module available to import from
 deps.js
 
 ```js
-export { default as minisearch } from "https://x.nest.land/hyper-adapter-minisearch@1.0.14/mod.js";
+export { default as minisearch } from 'https://x.nest.land/hyper-adapter-minisearch@1.0.14/mod.js'
 ```
 
 ## Features
