@@ -8,27 +8,25 @@ CREATE TABLE IF NOT EXISTS docs (
   doc TEXT,
   ts TEXT,
   PRIMARY KEY (type, parent, id)
-)`;
+)`
 
 // create index on type
 const idx = `
 CREATE INDEX IF NOT EXISTS type_idx ON docs ( type )
-`;
+`
 
-const insert =
-  "INSERT INTO docs (id, type, parent, doc, ts) VALUES (?, ?, ?, ?, ?)";
-const update =
-  "UPDATE docs set doc = ?, ts = ? WHERE id = ? and type = ? and parent = ?";
-const remove = "DELETE FROM docs where type = ? AND parent = ? AND id = ?";
-const removeByParent = "DELETE FROM docs where type = 'doc' AND parent = ?";
-const get = "SELECT doc FROM docs where id = ? and type = ? and parent = ? ";
-const list = "SELECT parent, doc FROM docs where type = ?";
+const insert = 'INSERT INTO docs (id, type, parent, doc, ts) VALUES (?, ?, ?, ?, ?)'
+const update = 'UPDATE docs set doc = ?, ts = ? WHERE id = ? and type = ? and parent = ?'
+const remove = 'DELETE FROM docs where type = ? AND parent = ? AND id = ?'
+const removeByParent = 'DELETE FROM docs where type = \'doc\' AND parent = ?'
+const get = 'SELECT doc FROM docs where id = ? and type = ? and parent = ? '
+const list = 'SELECT parent, doc FROM docs where type = ?'
 
 // lets create a nosql api
 export default function (db) {
   // create table and index
-  db.query(store);
-  db.query(idx);
+  db.query(store)
+  db.query(idx)
 
   return Object.freeze({
     post: ({ id, type, parent, doc }) =>
@@ -51,8 +49,7 @@ export default function (db) {
           parent,
         ]),
       ),
-    remove: ({ id, type, parent }) =>
-      Promise.resolve(db.query(remove, [type, parent, id])),
+    remove: ({ id, type, parent }) => Promise.resolve(db.query(remove, [type, parent, id])),
     get: ({ id, type, parent }) =>
       Promise.resolve({ id, type, parent })
         .then((ctx) => db.query(get, [ctx.id, ctx.type, ctx.parent]))
@@ -68,9 +65,7 @@ export default function (db) {
         ),
     removeByParent: (parent) =>
       Promise.resolve(parent)
-        .then((parent) =>
-          parent ? parent : Promise.reject({ error: "parent is required!" })
-        )
+        .then((parent) => parent ? parent : Promise.reject({ error: 'parent is required!' }))
         .then((parent) => db.query(removeByParent, [parent])),
-  });
+  })
 }

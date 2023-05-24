@@ -1,19 +1,19 @@
 // minisearch accesslayer
-import { crocks, MiniSearch } from "./deps.js";
+import { crocks, MiniSearch } from './deps.js'
 
-const { tryCatch, compose, constant, identity } = crocks;
+const { tryCatch, compose, constant, identity } = crocks
 
 const foldWith = (fn) => (m) =>
   m.either(
-    (e) => Promise.reject({ ok: false, message: "SAL:" + e.message }),
+    (e) => Promise.reject({ ok: false, message: 'SAL:' + e.message }),
     (_) => Promise.resolve(fn(_)),
-  );
-const fold = foldWith(constant({ ok: true }));
-const foldIdentity = foldWith(identity);
-const foldExists = foldWith(Boolean);
+  )
+const fold = foldWith(constant({ ok: true }))
+const foldIdentity = foldWith(identity)
+const foldExists = foldWith(Boolean)
 
 export default function () {
-  const indexes = new Map();
+  const indexes = new Map()
 
   /**
    * @typedef {Object} Mappings
@@ -29,9 +29,9 @@ export default function () {
   const create = compose(
     fold,
     tryCatch(({ index, mappings }) =>
-      indexes.set(index, new MiniSearch({ ...mappings, idField: "_id" }))
+      indexes.set(index, new MiniSearch({ ...mappings, idField: '_id' }))
     ),
-  );
+  )
 
   /**
    * @param { string } index
@@ -39,7 +39,7 @@ export default function () {
   const destroy = compose(
     fold,
     tryCatch((index) => indexes.delete(index)),
-  );
+  )
 
   /**
    * @typedef {Object} SalDocument
@@ -53,7 +53,7 @@ export default function () {
   const add = compose(
     fold,
     tryCatch(({ index, doc }) => indexes.get(index).add(doc)),
-  );
+  )
 
   /**
    * @param { SalDocument }
@@ -61,7 +61,7 @@ export default function () {
   const remove = compose(
     fold,
     tryCatch(({ index, doc }) => indexes.get(index).remove(doc)),
-  );
+  )
 
   /**
    * @typedef { Object } SalDocuments
@@ -73,7 +73,7 @@ export default function () {
   const bulk = compose(
     fold,
     tryCatch(({ index, docs }) => indexes.get(index).addAll(docs)),
-  );
+  )
 
   /**
    * @typedef { Object } SalSearch
@@ -85,15 +85,13 @@ export default function () {
    */
   const search = compose(
     foldIdentity,
-    tryCatch(({ index, query, options }) =>
-      indexes.get(index).search(query, options)
-    ),
-  );
+    tryCatch(({ index, query, options }) => indexes.get(index).search(query, options)),
+  )
 
   const exists = compose(
     foldExists,
     tryCatch((index) => indexes.get(index)),
-  );
+  )
 
   return Object.freeze({
     create,
@@ -103,5 +101,5 @@ export default function () {
     bulk,
     search,
     exists,
-  });
+  })
 }
