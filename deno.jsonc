@@ -1,7 +1,8 @@
 {
   "tasks": {
     "test": "deno lint && deno fmt --check && deno test -A",
-    "cache": "deno cache --lock=deno.lock --lock-write deps.js dev_deps.js "
+    "cache": "deno cache --lock=deno.lock --lock-write deps.js dev_deps.js",
+    "test:harness": "deno run --unstable --no-check --no-lock -A ./test/hyper.js"
   },
   "fmt": {
     "include": ["./"],
