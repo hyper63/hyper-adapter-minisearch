@@ -13,8 +13,3 @@ jobs:
       - uses: denoland/setup-deno@v1
         with:
           deno-version: v1.x
-      - run: deno install -A -f --unstable --no-check https://x.nest.land/eggs@0.3.6/eggs.ts
-      - run: |
-          export PATH="/home/runner/.deno/bin:$PATH"
-          eggs link ${{ secrets.NESTAPIKEY }}
-          eggs publish --yes 
