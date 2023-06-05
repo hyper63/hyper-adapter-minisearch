@@ -270,7 +270,7 @@ export default function ({ db, se }) {
                   (indexDoc) =>
                     post(indexDoc).map((_) => ({
                       ok: true,
-                      id: indexDoc.key,
+                      id: indexDoc.id,
                     })),
                   (doc) => ({
                     // Every doc is guaranteed to have an _id at this point
