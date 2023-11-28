@@ -9,7 +9,7 @@
 
 ---
 
-## Table of Contents
+<!-- toc -->
 
 - [Background](#background)
 - [Getting Started](#getting-started)
@@ -17,7 +17,10 @@
 - [Features](#features)
 - [Methods](#methods)
 - [Contributing](#contributing)
+- [Testing](#testing)
 - [License](#license)
+
+<!-- tocstop -->
 
 ## Background
 
@@ -31,7 +34,7 @@ in Node and in the browser.
 import { default as minisearch } from 'https://x.nest.land/hyper-adapter-minisearch@1.0.10/mod.js'
 
 export default {
-  app: opine,
+  app,
   adapter: [
     {
       port: 'search',
